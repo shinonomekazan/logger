@@ -44,54 +44,67 @@
 		var store = firebase.firestore();
 		var auth = firebase.auth();
 		var currentUser = null;
+		var prev = 0;
+
 		save.addEventListener("change", function() {
-		if (save.checked) {
-			if (! confirm("ほんとにGPS情報記録しちゃうんですか？")) {
-			save.checked = false;
-			return;
-			}
-			isSave = true;
-		} else {
-			isSave = false;
-		}
-		});
-		auth.onAuthStateChanged(function(user) {
-		currentUser = user;
-		console.log(user);
-		})
-		navigator.geolocation.watchPosition(function(pos) {
-		console.log(pos);
-		var text = document.createTextNode([
-			"lat: " + pos.coords.latitude,
-			"lng: " + pos.coords.longitude,
-			"alt: " + pos.coords.altitude
-			].join(", "));
-		var container = document.createElement("div");
-		container.appendChild(text);
-		geo.appendChild(container);
-		if (isSave) {
-			if (currentUser == null) {
-			auth.signInAnonymously().catch(function(error) {
-				alert("ログイン失敗");
+			if (save.checked) {
+				if (! confirm("ほんとにGPS情報記録しちゃうんですか？")) {
 				save.checked = false;
-				isSavel = false;
-				console.error(error);
-			});
-			return;
+				return;
+				}
+				isSave = true;
+			} else {
+				isSave = false;
 			}
-			store.collection("logs").doc(currentUser.uid).collection("geo").add({
-			latlong: new firebase.firestore.GeoPoint(
-				pos.coords.latitude,
-				pos.coords.longitude
-			),
-			altitude: pos.coords.altitude,
-			created: firebase.firestore.FieldValue.serverTimestamp()
 			});
-		}
-		}, function(err) {
-		console.error(err);
-		}, {
-		enableHighAccuracy: true
+			auth.onAuthStateChanged(function(user) {
+			currentUser = user;
+			console.log("user", user);
+		});
+
+		navigator.geolocation.watchPosition(function(pos) {
+			var now = new Date();
+			if ((now.getTime() - prev) < 1000) {
+				// 1秒以内の連続取得はブロック
+				return;
+			}
+			prev = now.getTime();
+			var text = document.createTextNode(
+				now.getHours() + "時" + now.getMinutes() + "分" + now.getSeconds() + "秒 " + ":"
+				+ [
+					"lat: " + pos.coords.latitude,
+					"lng: " + pos.coords.longitude,
+					"alt: " + pos.coords.altitude
+				].join(", "));
+			var container = document.createElement("div");
+			container.appendChild(text);
+			geo.insertBefore(container, geo.firstChild);
+			if (geo.children.length > 50) {
+				geo.removeChild(geo.lastChild);
+			}
+			if (isSave) {
+				if (currentUser == null) {
+				auth.signInAnonymously().catch(function(error) {
+					alert("ログイン失敗");
+					save.checked = false;
+					isSavel = false;
+					console.error(error);
+				});
+				return;
+				}
+				store.collection("logs").doc(currentUser.uid).collection("geo").add({
+				latlong: new firebase.firestore.GeoPoint(
+					pos.coords.latitude,
+					pos.coords.longitude
+				),
+				altitude: pos.coords.altitude,
+				created: firebase.firestore.FieldValue.serverTimestamp()
+				});
+			}
+			}, function(err) {
+			console.error(err);
+			}, {
+			enableHighAccuracy: true
 		});
 	} catch (e) {
 		console.error(e);
